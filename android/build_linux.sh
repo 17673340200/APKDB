@@ -91,7 +91,7 @@ log "安卓轮子版本：$PY_VER（宿主 PySide6 安装同版本以保持一�
 "$PIP" install -q --upgrade "pyside6==$PY_VER"
 
 # 部署工具自检要求安装的安卓构建依赖（buildozer / python-for-android 等）
-REQ="$("$PY" -c "import pathlib, PySide6; print(pathlib.Path(PySide6.__file__).parent / 'scripts' / 'requirements-android.txt')")"
+REQ="$("$WORK/venv/bin/python" -c "import pathlib, PySide6; print(pathlib.Path(PySide6.__file__).parent / 'scripts' / 'requirements-android.txt')")"
 if [ -f "$REQ" ]; then
     log "安装部署工具要求的安卓依赖：$(basename "$REQ")"
     "$PIP" install -q -r "$REQ"
