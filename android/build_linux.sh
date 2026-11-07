@@ -34,7 +34,7 @@ die()  { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
 log "安装 JDK 21 与构建工具链（需要 sudo；Qt 6.12 的安卓构建要求 21+）"
 sudo apt-get update -y >/dev/null 2>&1 || true
 sudo apt-get install -y openjdk-21-jdk-headless unzip wget curl zip unzip ccache \
-    build-essential autoconf automake libtool libtool-bin gettext pkg-config zlib1g-dev
+    build-essential autoconf automake libtool libtool-bin libltdl-dev gettext pkg-config zlib1g-dev
 JAVA_MAJOR="$(java -version 2>&1 | head -n1 | sed 's/[^0-9]*\([0-9]*\).*/\1/')"
 [ "${JAVA_MAJOR:-0}" -ge 21 ] || die "需要 JDK 21+（Qt 6.12 要求；当前 java 主版本 $JAVA_MAJOR）"
 
