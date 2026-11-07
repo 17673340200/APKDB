@@ -67,7 +67,9 @@ if [ ! -x "$WORK/venv/bin/python" ]; then
     python3 -m venv "$WORK/venv" || { sudo apt-get install -y python3-venv && python3 -m venv "$WORK/venv"; }
 fi
 PIP="$WORK/venv/bin/pip"
-# buildozer 需要在 PATH 里找到 venv 装的 cython 等可执行文件
+# buildozer 只看 VIRTUAL_ENV 环境变量决定是否给 pip 加 --user（venv 里 --user 会报错），
+# 必须显式导出；同时把 venv/bin 放进 PATH，让 buildozer 找到 cython 等可执行文件
+export VIRTUAL_ENV="$WORK/venv"
 export PATH="$WORK/venv/bin:$PATH"
 "$PIP" install -q --upgrade pip wheel
 
