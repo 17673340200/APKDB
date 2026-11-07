@@ -1,0 +1,11 @@
+PyQt6==6.11.0
+PyMuPDF==1.26.6
+numpy==2.3.5
+imageio-ffmpeg==0.6.0
+soundcard==0.4.6
+
+# 说明：
+# 1) 这是主工程（Win10 1809+ / 64 位）的依赖，界面用 Qt6。
+# 2) Windows 7 / 32 位版本在 win7_qt5_src/ 目录下（PyQt5 版），
+#    依赖见 win7_qt5_src/requirements.txt，须用 32 位 Python 3.9 安装并打包。
+# 3) imageio-ffmpeg 用于服务端录屏；soundcard 用于客户端采集系统声音。

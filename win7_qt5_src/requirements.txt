@@ -1,0 +1,12 @@
+PyQt5==5.15.11
+PyMuPDF==1.24.11
+numpy==1.26.4
+imageio-ffmpeg==0.6.0
+soundcard==0.4.6
+
+# 说明：
+# 1) 要在 Windows 7 / 32 位上跑，请用 32 位 Python 3.9 安装以上依赖并打包
+#    （Python 3.10 起官方已不支持 Windows 7；PyQt6 也没有 32 位包）。
+# 2) 只在新机器（Windows 10 1809+ / 64 位）上用时，可换成 PyQt6==6.11.0，
+#    代码目前按 PyQt5 编写（见 build.py 与 ui/video_view.py 的 Qt5 说明）。
+# 3) imageio-ffmpeg 用于服务端录屏；32 位环境会自动取 win32 版 ffmpeg。

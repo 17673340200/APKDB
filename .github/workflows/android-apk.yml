@@ -1,0 +1,51 @@
+name: Android APK
+
+# 云端构建安卓客户端：把代码推到 GitHub 后，在 Actions 页手动触发
+# （workflow_dispatch），或改动安卓相关文件自动触发；构建完成后在
+# 该次运行的 Artifacts 里下载 MediaPlayer-android-apk。
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "android/**"
+      - "core/**"
+      - "ui/video_view.py"
+      - "qtcompat.py"
+      - "main_android.py"
+      - ".github/workflows/android-apk.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 准备 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: 缓存安卓工具链（SDK/NDK/轮子，约 5GB）
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mediaplayer-android
+          key: android-ubuntu-ndk28c-v1
+
+      - name: 构建 APK
+        run: |
+          chmod +x android/build_linux.sh
+          ./android/build_linux.sh
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MediaPlayer-android-apk
+          path: android/staging/*.apk
+          if-no-files-found: error

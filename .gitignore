@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.pyc
+
+# 虚拟环境
+.venv/
+.venv32/
+
+# 构建产物与临时目录
+build/
+build_win7/
+dist/
+dist_win7_32/
+android/staging/
+android-build/
+
+# 安卓打包产物
+*.apk
+*.aab
+pysidedeploy.spec
+
+# 运行时生成的数据
+received/
+saves/
+clients.json
+schedule.json
+
+# 其它
+*.log
