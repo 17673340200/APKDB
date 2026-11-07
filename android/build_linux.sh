@@ -90,6 +90,13 @@ PY_VER="$(basename "$PYSIDE_WHEEL" | sed 's/^[^-]*-\([^-]*\)-.*/\1/')"
 log "安卓轮子版本：$PY_VER（宿主 PySide6 安装同版本以保持一致）"
 "$PIP" install -q --upgrade "pyside6==$PY_VER"
 
+# 部署工具自检要求安装的安卓构建依赖（buildozer / python-for-android 等）
+REQ="$("$PY" -c "import pathlib, PySide6; print(pathlib.Path(PySide6.__file__).parent / 'scripts' / 'requirements-android.txt')")"
+if [ -f "$REQ" ]; then
+    log "安装部署工具要求的安卓依赖：$(basename "$REQ")"
+    "$PIP" install -q -r "$REQ"
+fi
+
 DEPLOY="$WORK/venv/bin/pyside6-android-deploy"
 [ -x "$DEPLOY" ] || die "pyside6-android-deploy 不在 venv 里（PySide6 版本 $PY_VER 可能不含该工具，换 6.9.x 试）"
 
