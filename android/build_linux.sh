@@ -29,13 +29,18 @@ die()  { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
 [ "$(uname -s)" = "Linux" ] || die "此脚本只能在 Linux/WSL2 上运行（宿主限制来自 pyside6-android-deploy）"
 
 # ---------- 1. 系统依赖 ----------
-if ! command -v java >/dev/null 2>&1; then
-    log "安装 JDK 21（需要 sudo；Qt 6.12 的安卓构建要求 21+）"
+NEEDED_PKGS="unzip wget curl build-essential autoconf automake libtool pkg-config zip ccache zlib1g-dev"
+if ! command -v java >/dev/null 2>&1 || ! command -v pkg-config >/dev/null 2>&1; then
+    log "安装 JDK 21 与构建工具链（需要 sudo；Qt 6.12 的安卓构建要求 21+）"
     sudo apt-get update -y
-    sudo apt-get install -y openjdk-21-jdk-headless unzip wget curl
+    sudo apt-get install -y openjdk-21-jdk-headless $NEEDED_PKGS
 fi
 JAVA_MAJOR="$(java -version 2>&1 | head -n1 | sed 's/[^0-9]*\([0-9]*\).*/\1/')"
 [ "${JAVA_MAJOR:-0}" -ge 21 ] || die "需要 JDK 21+（Qt 6.12 要求；当前 java 主版本 $JAVA_MAJOR）"
+for tool in gcc make autoconf automake libtool pkg-config zip ccache; do
+    command -v "$tool" >/dev/null 2>&1 || sudo apt-get install -y $NEEDED_PKGS
+    break
+done
 
 # ---------- 2. Android SDK / NDK ----------
 if [ ! -d "$SDK_ROOT/cmdline-tools/latest" ]; then
@@ -62,6 +67,8 @@ if [ ! -x "$WORK/venv/bin/python" ]; then
     python3 -m venv "$WORK/venv" || { sudo apt-get install -y python3-venv && python3 -m venv "$WORK/venv"; }
 fi
 PIP="$WORK/venv/bin/pip"
+# buildozer 需要在 PATH 里找到 venv 装的 cython 等可执行文件
+export PATH="$WORK/venv/bin:$PATH"
 "$PIP" install -q --upgrade pip wheel
 
 # ---------- 4. 从 Qt 官方公开归档下载安卓版轮子（开源版，无需登录/qtpip） ----------
