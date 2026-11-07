@@ -136,6 +136,7 @@ cp "$ROOT/android/mobile_window.py" "$STAGING/android/"
 # ---------- 6. 构建包 ----------
 cd "$STAGING"
 log "运行 pyside6-android-deploy（首次要下 Gradle 依赖，耐心等）"
+set +e
 "$DEPLOY" --name "$APP_NAME" \
     --wheel-pyside="$PYSIDE_WHEEL" \
     --wheel-shiboken="$SHIBOKEN_WHEEL" \
@@ -143,6 +144,28 @@ log "运行 pyside6-android-deploy（首次要下 Gradle 依赖，耐心等）"
     --sdk-path="$SDK_ROOT" \
     --extra-modules Network,Multimedia,Pdf \
     --force
+RC=$?
+set -e
+if [ $RC -ne 0 ]; then
+    log "部署失败（exit $RC），倾倒诊断信息以定位问题"
+    echo "===== pysidedeploy.spec（部署工具生成的配置） ====="
+    cat "$STAGING/pysidedeploy.spec" 2>/dev/null || echo "(不存在)"
+    echo "===== 轮子中的 jar 文件 ====="
+    unzip -l "$PYSIDE_WHEEL" 2>/dev/null | grep -i "\.jar" || echo "(轮子里没有 jar)"
+    echo "===== dist 目录中的 jar 与 build.gradle ====="
+    DIST_DIR="$(find "$STAGING/.buildozer" -maxdepth 9 -type d -name "$APP_NAME" 2>/dev/null | head -n1)"
+    echo "dist: $DIST_DIR"
+    if [ -n "$DIST_DIR" ]; then
+        find "$DIST_DIR" -name "*.jar" 2>/dev/null | head -10
+        echo "----- build.gradle 的 dependencies 段 -----"
+        sed -n '/dependencies/,/^}/p' "$DIST_DIR/build.gradle" 2>/dev/null || echo "(无 build.gradle)"
+        ls "$DIST_DIR"
+    fi
+    echo "===== deploy 工具生成的 PySide6 recipe ====="
+    find "$STAGING/deployment/recipes" -type f 2>/dev/null | head -10
+    cat "$STAGING/deployment/recipes/PySide6/__init__.py" 2>/dev/null
+    exit $RC
+fi
 
 APK="$(ls -t "$STAGING"/*.apk 2>/dev/null | head -n1 || true)"
 if [ -n "$APK" ]; then
