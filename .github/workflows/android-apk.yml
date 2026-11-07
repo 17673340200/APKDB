@@ -26,11 +26,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 准备 JDK 17
+      - name: 准备 JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: "21"
 
       - name: 缓存安卓工具链（SDK/NDK/轮子，约 5GB）
         uses: actions/cache@v4

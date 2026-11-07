@@ -30,12 +30,12 @@ die()  { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # ---------- 1. 系统依赖 ----------
 if ! command -v java >/dev/null 2>&1; then
-    log "安装 JDK 17（需要 sudo）"
+    log "安装 JDK 21（需要 sudo；Qt 6.12 的安卓构建要求 21+）"
     sudo apt-get update -y
-    sudo apt-get install -y openjdk-17-jdk-headless unzip wget
+    sudo apt-get install -y openjdk-21-jdk-headless unzip wget curl
 fi
 JAVA_MAJOR="$(java -version 2>&1 | head -n1 | sed 's/[^0-9]*\([0-9]*\).*/\1/')"
-[ "${JAVA_MAJOR:-0}" -ge 17 ] || die "需要 JDK 17+（当前 java -version 主版本 $JAVA_MAJOR）"
+[ "${JAVA_MAJOR:-0}" -ge 21 ] || die "需要 JDK 21+（Qt 6.12 要求；当前 java 主版本 $JAVA_MAJOR）"
 
 # ---------- 2. Android SDK / NDK ----------
 if [ ! -d "$SDK_ROOT/cmdline-tools/latest" ]; then
@@ -64,29 +64,26 @@ fi
 PIP="$WORK/venv/bin/pip"
 "$PIP" install -q --upgrade pip wheel
 
-# ---------- 4. 下载安卓版 PySide6 / Shiboken6 轮子并让宿主环境版本一致 ----------
-if ! ls "$WORK/wheels/"*shiboken* "$WORK/wheels/"*PySide6* >/dev/null 2>&1; then
-    # qtpip 是依赖系统 Qt 库的编译二进制，缺库时先补上（libqt6core6 会带上依赖）
-    if ! ldconfig -p 2>/dev/null | grep -q libdouble-conversion; then
-        log "安装 qtpip 所需系统库（libdouble-conversion / Qt6 Core）"
-        sudo apt-get update -y >/dev/null 2>&1 || true
-        sudo apt-get install -y libqt6core6 >/dev/null 2>&1 \
-            || sudo apt-get install -y libdouble-conversion3 >/dev/null 2>&1 \
-            || true
-    fi
-    log "下载安卓版 PySide6 / Shiboken6 轮子（架构 $ARCH）"
-    "$PIP" install -q qtpip
-    QTPIP="$WORK/venv/bin/qtpip"
-    mkdir -p "$WORK/wheels"
-    # qtpip 没有 --outdir 参数，默认下载到当前目录，所以切进去执行
-    ( cd "$WORK/wheels" && "$QTPIP" download PySide6   --android --arch "$ARCH" )
-    ( cd "$WORK/wheels" && "$QTPIP" download Shiboken6 --android --arch "$ARCH" ) || true
+# ---------- 4. 从 Qt 官方公开归档下载安卓版轮子（开源版，无需登录/qtpip） ----------
+# 归档结构：QtForPython/pyside6/pyside6-<ver>-<ver>-cp310-abi3-android_<arch>.whl（直接在顶层）
+QT_ARCHIVE="https://download.qt.io/official_releases/QtForPython"
+mkdir -p "$WORK/wheels"
+
+if ! ls "$WORK/wheels/"*shiboken* >/dev/null 2>&1; then
+    log "从 Qt 公开归档下载安卓版轮子（架构 $ARCH）"
+    for pkg in pyside6 shiboken6; do
+        name="$(curl -fsSL "$QT_ARCHIVE/$pkg/" | grep -oE 'href="[^"]+"' \
+            | sed 's/^href="//;s/"$//' \
+            | grep -Ei "android_${ARCH}\.whl$" | sort -V | tail -n1)"
+        [ -n "$name" ] || die "$pkg 在归档里没有 android_${ARCH} 的轮子（检查 $QT_ARCHIVE/$pkg/）"
+        log "下载 $name"
+        curl -fL --retry 3 -o "$WORK/wheels/$name" "$QT_ARCHIVE/$pkg/$name"
+    done
 fi
 log "wheels 目录内容：$(ls "$WORK/wheels/" 2>/dev/null | tr '\n' ' ')"
-PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"PySide6-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
-[ -n "$PYSIDE_WHEEL" ] || PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"PySide6_Essentials-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
-[ -n "$PYSIDE_WHEEL" ] || die "没有找到安卓版 PySide6 轮子（qtpip download 是否成功？见上面 wheels 目录内容）"
-SHIBOKEN_WHEEL="$(ls -t "$WORK/wheels/"shiboken6-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
+PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"*[Ss]ide6-*android*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
+[ -n "$PYSIDE_WHEEL" ] || die "没有找到安卓版 PySide6 轮子（见上面 wheels 目录内容）"
+SHIBOKEN_WHEEL="$(ls -t "$WORK/wheels/"*shiboken*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
 [ -n "$SHIBOKEN_WHEEL" ] || die "没有找到安卓版 Shiboken6 轮子"
 
 PY_VER="$(basename "$PYSIDE_WHEEL" | sed 's/^[^-]*-\([^-]*\)-.*/\1/')"
