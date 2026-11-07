@@ -76,8 +76,11 @@ if ! ls "$WORK/wheels/"*shiboken* "$WORK/wheels/"*PySide6* >/dev/null 2>&1; then
     fi
     log "下载安卓版 PySide6 / Shiboken6 轮子（架构 $ARCH）"
     "$PIP" install -q qtpip
-    "$WORK/venv/bin/qtpip" download PySide6    --android --arch "$ARCH" --outdir "$WORK/wheels"
-    "$WORK/venv/bin/qtpip" download Shiboken6  --android --arch "$ARCH" --outdir "$WORK/wheels" || true
+    QTPIP="$WORK/venv/bin/qtpip"
+    mkdir -p "$WORK/wheels"
+    # qtpip 没有 --outdir 参数，默认下载到当前目录，所以切进去执行
+    ( cd "$WORK/wheels" && "$QTPIP" download PySide6   --android --arch "$ARCH" )
+    ( cd "$WORK/wheels" && "$QTPIP" download Shiboken6 --android --arch "$ARCH" ) || true
 fi
 log "wheels 目录内容：$(ls "$WORK/wheels/" 2>/dev/null | tr '\n' ' ')"
 PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"PySide6-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
