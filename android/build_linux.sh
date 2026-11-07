@@ -61,6 +61,14 @@ if [ ! -d "$SDK_ROOT/ndk/$NDK_VERSION" ]; then
 fi
 NDK_PATH="$SDK_ROOT/ndk/$NDK_VERSION"
 
+# buildozer 只认旧版 SDK 布局（tools/bin/sdkmanager），给它补符号链接（缓存命中时也要补）
+if [ -x "$SDKMANAGER" ] && [ ! -e "$SDK_ROOT/tools/bin/sdkmanager" ]; then
+    log "为 buildozer 补旧版 SDK 目录布局（tools/bin → cmdline-tools/latest）"
+    mkdir -p "$SDK_ROOT/tools"
+    ln -sfn "$SDK_ROOT/cmdline-tools/latest/bin" "$SDK_ROOT/tools/bin"
+    ln -sfn "$SDK_ROOT/cmdline-tools/latest/lib" "$SDK_ROOT/tools/lib"
+fi
+
 # ---------- 3. 宿主 Python 环境（必须建在项目目录之外） ----------
 if [ ! -x "$WORK/venv/bin/python" ]; then
     log "创建构建虚拟环境 $WORK/venv"
