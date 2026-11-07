@@ -66,13 +66,23 @@ PIP="$WORK/venv/bin/pip"
 
 # ---------- 4. 下载安卓版 PySide6 / Shiboken6 轮子并让宿主环境版本一致 ----------
 if ! ls "$WORK/wheels/"*shiboken* "$WORK/wheels/"*PySide6* >/dev/null 2>&1; then
+    # qtpip 是依赖系统 Qt 库的编译二进制，缺库时先补上（libqt6core6 会带上依赖）
+    if ! ldconfig -p 2>/dev/null | grep -q libdouble-conversion; then
+        log "安装 qtpip 所需系统库（libdouble-conversion / Qt6 Core）"
+        sudo apt-get update -y >/dev/null 2>&1 || true
+        sudo apt-get install -y libqt6core6 >/dev/null 2>&1 \
+            || sudo apt-get install -y libdouble-conversion3 >/dev/null 2>&1 \
+            || true
+    fi
     log "下载安卓版 PySide6 / Shiboken6 轮子（架构 $ARCH）"
     "$PIP" install -q qtpip
     "$WORK/venv/bin/qtpip" download PySide6    --android --arch "$ARCH" --outdir "$WORK/wheels"
     "$WORK/venv/bin/qtpip" download Shiboken6  --android --arch "$ARCH" --outdir "$WORK/wheels" || true
 fi
+log "wheels 目录内容：$(ls "$WORK/wheels/" 2>/dev/null | tr '\n' ' ')"
 PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"PySide6-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
-[ -n "$PYSIDE_WHEEL" ] || die "没有找到安卓版 PySide6 轮子（qtpip download 是否成功？）"
+[ -n "$PYSIDE_WHEEL" ] || PYSIDE_WHEEL="$(ls -t "$WORK/wheels/"PySide6_Essentials-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
+[ -n "$PYSIDE_WHEEL" ] || die "没有找到安卓版 PySide6 轮子（qtpip download 是否成功？见上面 wheels 目录内容）"
 SHIBOKEN_WHEEL="$(ls -t "$WORK/wheels/"shiboken6-*"$ARCH"*.whl 2>/dev/null | head -n1 || true)"
 [ -n "$SHIBOKEN_WHEEL" ] || die "没有找到安卓版 Shiboken6 轮子"
 
