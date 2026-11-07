@@ -133,44 +133,26 @@ cp "$ROOT/android/pdf_view.py"      "$STAGING/android/"
 cp "$ROOT/android/image_slideshow.py" "$STAGING/android/"
 cp "$ROOT/android/mobile_window.py" "$STAGING/android/"
 
-# ---------- 5.5 把轮子里的 Qt Java 类打成 AAR 喂给 p4a ----------
-# p4a 只会从 <storage>/build/aars/<dist>/*.aar 把 Java 类带进 dist 的 libs/（distribute_aars），
-# 部署工具没做这一步（Gradle 报 QtActivityBase not found 的根因），这里手动补上
-case "$ARCH" in
-    aarch64) P4A_ARCH="arm64-v8a" ;;
-    x86_64)  P4A_ARCH="x86_64" ;;
-    *)       P4A_ARCH="$ARCH" ;;
-esac
-AAR_DIR="$STAGING/.buildozer/android/platform/build-arm64-v8a/build/aars/$APP_NAME"
-log "合并轮子里的 Qt jar 生成 AAR（Qt6Android.aar，供 Gradle 编译/打包）"
-"$WORK/venv/bin/python" - "$PYSIDE_WHEEL" "$AAR_DIR" "$P4A_ARCH" <<'PYEOF'
-import sys, zipfile, io, os
-wheel, aar_dir, p4a_arch = sys.argv[1], sys.argv[2], sys.argv[3]
-z = zipfile.ZipFile(wheel)
-jars = sorted(n for n in z.namelist() if n.startswith('PySide6/jar/') and n.endswith('.jar'))
-assert jars, '轮子里没有 jar（PySide6/jar/*.jar）'
-merged = io.BytesIO()
-out = zipfile.ZipFile(merged, 'w', zipfile.ZIP_DEFLATED)
-seen = set()
-for j in jars:
-    src = zipfile.ZipFile(io.BytesIO(z.read(j)))
-    for info in src.infolist():
-        n = info.filename
-        if n in seen or (n.startswith('META-INF/') and (
-                n.endswith('.SF') or n.endswith('.RSA') or n.endswith('.DSA')
-                or n == 'META-INF/MANIFEST.MF')):
-            continue
-        seen.add(n)
-        out.writestr(info, src.read(n))
-out.writestr('AndroidManifest.xml',
-             '<manifest package="org.qtproject.qt.android"/>\n')
-# p4a 的 _unpack_aar 要求 jni/<arch>/ 下有 .so，放一个空占位（不会被加载）
-out.writestr(f'jni/{p4a_arch}/libplaceholder.so', b'')
-out.close()
-os.makedirs(aar_dir, exist_ok=True)
-with open(os.path.join(aar_dir, 'Qt6Android.aar'), 'wb') as f:
-    f.write(merged.getvalue())
-print(f'Qt6Android.aar 已生成于 {aar_dir}（合并 {len(jars)} 个 jar，{len(seen)} 个条目）')
+# ---------- 5.5 给部署工具打补丁：修 android.add_jars ----------
+# 部署工具的 __find_jars 依赖 Qt 轮子内 XML 的 <jar file="jar/..."> 条目，
+# Qt 6.12 轮子里解析不出（QtActivityBase not found 的根因），这里改为
+# 把 jars_dir 下全部 jar 都写进 android.add_jars（buildozer 原生支持，会透传给 p4a --add-jar）
+BOOSTR_PY="$("$WORK/venv/bin/python" -c "import pathlib, PySide6; print(pathlib.Path(PySide6.__file__).parent / 'scripts' / 'deploy_lib' / 'android' / 'buildozer.py')")"
+"$WORK/venv/bin/python" - "$BOOSTR_PY" <<'PYEOF'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+t = p.read_text(encoding="utf-8")
+old = '        self.set_value("app", "android.add_jars", ",".join(jars))'
+new = ('        # PATCH: Qt 6.12 wheel dependency XMLs yield no jar entries; add all jars\n'
+       '        if pysidedeploy_config.jars_dir:\n'
+       '            for extra in sorted(pysidedeploy_config.jars_dir.glob("*.jar")):\n'
+       '                jars.add(str(extra))\n'
+       '        self.set_value("app", "android.add_jars", ",".join(jars))')
+assert old in t, "补丁定位失败：android.add_jars 写入点不存在"
+p.write_text(t.replace(old, new, 1), encoding="utf-8")
+print("deploy_lib/android/buildozer.py 补丁完成")
 PYEOF
 
 # ---------- 6. 构建包 ----------
