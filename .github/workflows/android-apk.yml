@@ -16,7 +16,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # 固定 24.04：ubuntu-latest(26.x) 的 libtool 2.5 删除了 LT_SYS_SYMBOL_USCORE，
+    # p4a 里 libffi 的旧 autotools 文件引用该宏，autoreconf 会失败
+    runs-on: ubuntu-24.04
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
