@@ -155,19 +155,68 @@ p.write_text(t.replace(old, new, 1), encoding="utf-8")
 print("deploy_lib/android/buildozer.py 补丁1（add_jars）完成")
 
 # 补丁2：--load-local-libs 为空时不要传该参数（p4a 会把空字符串当库名，
-# 生成 lib_arm64-v8a.so 占位条目，QtLoader 按清单加载必然失败退出）
+# 生成 lib_arm64-v8a.so 占位条目，QtLoader 按清单加载必然失败退出）；
+# "main" 始终保留在加载清单里
 old2 = '''        extra_args = (f"--qt-libs={modules} --load-local-libs={local_libs}"
                       f" --init-classes={init_classes}")'''
 new2 = '''        # PATCH: p4a requires --load-local-libs, but an empty value makes p4a
         # generate a bogus "lib_arm64-v8a.so" entry that QtLoader cannot load.
-        # Fall back to "main" -> libmain_arm64-v8a.so, which always exists.
+        # "main" -> libmain_<arch>.so (p4a app main lib) must always be loaded.
         if not local_libs:
             local_libs = "main"
+        elif "main" not in local_libs.split(","):
+            local_libs = local_libs + ",main"
         extra_args = (f"--qt-libs={modules} --load-local-libs={local_libs}"
                       f" --init-classes={init_classes}")'''
 assert old2 in t, "补丁定位失败：extra_args 写入点不存在"
 p.write_text(t.replace(old2, new2, 1), encoding="utf-8")
 print("deploy_lib/android/buildozer.py 补丁2（load-local-libs）完成")
+PYEOF
+
+# ---------- 5.7 补丁3：插件扫描回退 ----------
+# 部署工具的 _find_local_libs 依赖 Qt 轮子内 XML（6.12 里解析不出），导致
+# qt_plugins 为空 → 平台插件 libplugins_platforms_qtforandroid 从未进 APK →
+# QtActivityDelegateBase 的 native 方法报 UnsatisfiedLinkError 闪退。
+# 这里改为：XML 无结果时直接扫描轮子里的插件 so（ platforms/qtforandroid
+# 是启动必需，multimedia/ffmpeg 是播放必需），并按 recipe 会复制的确切
+# 路径存在性过滤，避免 designer 等怪名文件混入加载清单。
+CFG_PY="$("$WORK/venv/bin/python" -c "import pathlib, PySide6; print(pathlib.Path(PySide6.__file__).parent / 'scripts' / 'deploy_lib' / 'android' / 'android_config.py')")"
+"$WORK/venv/bin/python" - "$CFG_PY" <<'PYEOF'
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+t = p.read_text(encoding="utf-8")
+old = "        return list(local_libs), list(plugins)"
+new = (
+    "        if not local_libs and not plugins:\n"
+    "            # PATCH: Qt 6.12 wheels ship no parsable dependency XMLs; scan\n"
+    "            # the wheel directly for plugin libs (qtforandroid platform\n"
+    "            # plugin is required before any Qt JNI call, multimedia/ffmpeg\n"
+    "            # for playback). Only accept plugins the recipe will actually\n"
+    "            # copy (path exists in wheel), so odd names get filtered out.\n"
+    "            with zipfile.ZipFile(self.wheel_pyside) as zf:\n"
+    "                wheel_files = set(zf.namelist())\n"
+    "            suffix = f\"_{self.arch}.so\"\n"
+    "            for name in wheel_files:\n"
+    "                if \"/plugins/\" not in name or not name.endswith(suffix):\n"
+    "                    continue\n"
+    "                match = lib_pattern.search(Path(name).stem)\n"
+    "                if not match:\n"
+    "                    continue\n"
+    "                lib_name = match.group(\"lib_name\")\n"
+    "                plugin_key = lib_name.split(\"plugins_\", 1)[1]\n"
+    "                category, _, rest = plugin_key.partition(\"_\")\n"
+    "                expected = (f\"PySide6/Qt/plugins/{category}/\"\n"
+    "                            f\"libplugins_{category}_{rest}_{self.arch}.so\")\n"
+    "                if rest and expected in wheel_files:\n"
+    "                    local_libs.add(lib_name)\n"
+    "                    plugins.add(plugin_key)\n"
+    "        return list(local_libs), list(plugins)"
+)
+assert old in t, "补丁定位失败：_find_local_libs 返回点不存在"
+p.write_text(t.replace(old, new, 1), encoding="utf-8")
+print("deploy_lib/android/android_config.py 补丁3（插件扫描回退）完成")
 PYEOF
 
 # ---------- 6. 预下载 Gradle 分发包 ----------
