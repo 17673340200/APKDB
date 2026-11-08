@@ -183,7 +183,14 @@ new2 = '''        # PATCH: p4a requires --load-local-libs, but an empty value ma
         extra_args = (f"--qt-libs={modules} --load-local-libs={local_libs}"
                       f" --init-classes={init_classes}")'''
 assert old2 in t, "补丁定位失败：extra_args 写入点不存在"
+# 关键：补丁1 刚改写过文件，必须重读，否则这里用旧内容整体覆写会把补丁1冲掉
+t = p.read_text(encoding="utf-8")
+assert old2 in t, "补丁定位失败：重读后 extra_args 写入点不存在"
 p.write_text(t.replace(old2, new2, 1), encoding="utf-8")
+# 自检：两个补丁必须同时存在于最终文件
+chk = p.read_text(encoding="utf-8")
+assert "PATCH v2" in chk and "--load-local-libs={local_libs}" in chk, "自检失败：补丁互相覆盖！"
+print("自检：补丁1+2 同时存在于最终文件 ✓")
 print("deploy_lib/android/buildozer.py 补丁2（load-local-libs）完成")
 PYEOF
 
