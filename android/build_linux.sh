@@ -145,10 +145,24 @@ from pathlib import Path
 p = Path(sys.argv[1])
 t = p.read_text(encoding="utf-8")
 old = '        self.set_value("app", "android.add_jars", ",".join(jars))'
-new = ('        # PATCH: Qt 6.12 wheel dependency XMLs yield no jar entries; add all jars\n'
-       '        if pysidedeploy_config.jars_dir:\n'
-       '            for extra in sorted(pysidedeploy_config.jars_dir.glob("*.jar")):\n'
-       '                jars.add(str(extra))\n'
+new = ('        # PATCH v2: robust jar injection — extract jars directly from the\n'
+       '        # wheel; do NOT rely on jars_dir being set/valid at this point\n'
+       '        # (observed flaky: jars_dir sometimes unset despite spec value).\n'
+       '        import zipfile as _zf\n'
+       '        _jars_out = (Path(pysidedeploy_config.generated_files_path)\n'
+       '                     / "jar" / "PySide6" / "jar")\n'
+       '        try:\n'
+       '            with _zf.ZipFile(pysidedeploy_config.wheel_pyside) as _z:\n'
+       '                for _n in _z.namelist():\n'
+       '                    if _n.startswith("PySide6/jar/") and _n.endswith(".jar"):\n'
+       '                        _out = _jars_out / Path(_n).name\n'
+       '                        if not _out.exists() or _out.stat().st_size == 0:\n'
+       '                            _out.parent.mkdir(parents=True, exist_ok=True)\n'
+       '                            _out.write_bytes(_z.read(_n))\n'
+       '                        jars.add(str(_out))\n'
+       '            print(f"jar 补丁：{len(jars)} 个 jar 进入编译类路径", flush=True)\n'
+       '        except Exception as _e:\n'
+       '            print(f"jar 补丁执行失败（关键！）：{_e}", flush=True)\n'
        '        self.set_value("app", "android.add_jars", ",".join(jars))')
 assert old in t, "补丁定位失败：android.add_jars 写入点不存在"
 p.write_text(t.replace(old, new, 1), encoding="utf-8")
