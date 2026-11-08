@@ -170,7 +170,31 @@ p.write_text(t.replace(old2, new2, 1), encoding="utf-8")
 print("deploy_lib/android/buildozer.py 补丁2（load-local-libs）完成")
 PYEOF
 
-# ---------- 6. 构建包 ----------
+# ---------- 6. 预下载 Gradle 分发包 ----------
+# gradlew 下载 Gradle 发行包（托管在 GitHub Releases）曾因 504 抖动失败，
+# 这里用 wget 自动重试 5 次预下载进 wrapper 缓存，gradlew 会直接复用
+GRADLE_URL="https://services.gradle.org/distributions/gradle-8.14.3-all.zip"
+GRADLE_HASH="$("$WORK/venv/bin/python" -c "
+import hashlib
+n = int(hashlib.sha1('$GRADLE_URL'.encode()).hexdigest(), 16)
+d = '0123456789abcdefghijklmnopqrstuvwxyz'
+s = ''
+while n:
+    s = d[n % 36] + s
+    n //= 36
+print(s)
+")"
+GRADLE_CACHE="$HOME/.gradle/wrapper/dists/gradle-8.14.3-all/$GRADLE_HASH"
+mkdir -p "$GRADLE_CACHE"
+if [ ! -e "$GRADLE_CACHE/gradle-8.14.3-all" ]; then
+    log "预下载 Gradle 分发包（wget 重试 5 次）"
+    wget -t 5 -c -q -O "$GRADLE_CACHE/gradle-8.14.3-all.zip.part" "$GRADLE_URL" \
+        || die "Gradle 分发包下载失败"
+    mv "$GRADLE_CACHE/gradle-8.14.3-all.zip.part" "$GRADLE_CACHE/gradle-8.14.3-all.zip"
+    log "Gradle 分发包已就绪：$GRADLE_CACHE"
+fi
+
+# ---------- 7. 构建包 ----------
 cd "$STAGING"
 log "运行 pyside6-android-deploy（首次要下 Gradle 依赖，耐心等）"
 set +e
