@@ -23,9 +23,9 @@ jobs:
     # （x86_64 模拟器跑 arm64 包靠 Berberis 转译，PySide6/Python 大型原生
     #  应用会在转译器里 SIGSEGV，必须用原生 x86_64 包）
     strategy:
+      fail-fast: false
       matrix:
         arch: [aarch64, x86_64]
-        fail-fast: false
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
