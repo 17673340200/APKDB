@@ -158,11 +158,13 @@ print("deploy_lib/android/buildozer.py 补丁1（add_jars）完成")
 # 生成 lib_arm64-v8a.so 占位条目，QtLoader 按清单加载必然失败退出）
 old2 = '''        extra_args = (f"--qt-libs={modules} --load-local-libs={local_libs}"
                       f" --init-classes={init_classes}")'''
-new2 = '''        extra_args = f"--qt-libs={modules}"  # PATCH: skip empty local-libs/init-classes
-        if local_libs:
-            extra_args += f" --load-local-libs={local_libs}"
-        if init_classes:
-            extra_args += f" --init-classes={init_classes}"'''
+new2 = '''        # PATCH: p4a requires --load-local-libs, but an empty value makes p4a
+        # generate a bogus "lib_arm64-v8a.so" entry that QtLoader cannot load.
+        # Fall back to "main" -> libmain_arm64-v8a.so, which always exists.
+        if not local_libs:
+            local_libs = "main"
+        extra_args = (f"--qt-libs={modules} --load-local-libs={local_libs}"
+                      f" --init-classes={init_classes}")'''
 assert old2 in t, "补丁定位失败：extra_args 写入点不存在"
 p.write_text(t.replace(old2, new2, 1), encoding="utf-8")
 print("deploy_lib/android/buildozer.py 补丁2（load-local-libs）完成")
