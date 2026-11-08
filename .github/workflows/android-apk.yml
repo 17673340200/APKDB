@@ -19,6 +19,13 @@ jobs:
     # 固定 24.04：ubuntu-latest(26.x) 的 libtool 2.5 删除了 LT_SYS_SYMBOL_USCORE，
     # p4a 里 libffi 的旧 autotools 文件引用该宏，autoreconf 会失败
     runs-on: ubuntu-24.04
+    # 双架构：aarch64 给真机；x86_64 给模拟器原生运行
+    # （x86_64 模拟器跑 arm64 包靠 Berberis 转译，PySide6/Python 大型原生
+    #  应用会在转译器里 SIGSEGV，必须用原生 x86_64 包）
+    strategy:
+      matrix:
+        arch: [aarch64, x86_64]
+        fail-fast: false
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -38,16 +45,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/mediaplayer-android
-          key: android-ubuntu-ndk28c-v1
+          key: android-ubuntu-ndk28c-v2-${{ matrix.arch }}
 
       - name: 构建 APK
         run: |
           chmod +x android/build_linux.sh
-          ./android/build_linux.sh
+          ARCH=${{ matrix.arch }} ./android/build_linux.sh
 
       - name: 上传 APK
         uses: actions/upload-artifact@v4
         with:
-          name: MediaPlayer-android-apk
+          name: MediaPlayer-android-apk-${{ matrix.arch }}
           path: android/staging/*.apk
           if-no-files-found: error
